@@ -15,36 +15,23 @@ public class RhinoRunner {
 
 	public static ThreadLocal<ScriptableObject> scope = new ThreadLocal<>();
 
-	private Map<String, Object> attributes = Maps.newHashMap();
-
 	private String scriptName;
 
 	public RhinoRunner(String scriptName) {
 		this.resourceLoader = new ResourceLoader();
 		this.scriptName = scriptName;
 	}
-
-	public RhinoRunner withAttribute(String key, Object value) {
-		attributes.put(key, value);
-		return this;
-	}
-
-	private void addStandardObjectsToScope(ScriptableObject scope) {
+    
+	private void addConsoleToScope(ScriptableObject scope) {
 		Object console = Context.javaToJS(new Console(), scope);
 		ScriptableObject.putProperty(scope, "console", console);
-
-		for (String key : attributes.keySet()) {
-			Object value = Context.javaToJS(attributes.get(key), scope);
-			ScriptableObject.putProperty(scope, key, value);
-		}
 	}
 
-	// Support for loading from CommonJS modules
-	private Require installRequire(Context cx, ScriptableObject scope) {
+	private Require createAndInstallRequire(Context cx, ScriptableObject scope) {
 		RequireBuilder rb = new RequireBuilder();
 		rb.setSandboxed(false);
 		rb.setModuleScriptProvider(new ModuleScriptProvider(resourceLoader));
-
+        
 		Require require = rb.createRequire(cx, scope);
 		return require;
 	}
@@ -55,12 +42,12 @@ public class RhinoRunner {
 		cx.setOptimizationLevel(2);
 		try {
 			scope.set(cx.initStandardObjects());
-			addStandardObjectsToScope(scope.get());
+			addConsoleToScope(scope.get());
 
 			scope.get().defineFunctionProperties(new String[] { "setTimeout" }, ConstantMethods.class,
 					ScriptableObject.DONTENUM);
 
-			Require require = installRequire(cx, scope.get());
+			Require require = createAndInstallRequire(cx, scope.get());
 
 			Scriptable script = require.requireMain(cx, scriptName);
 		} finally {
